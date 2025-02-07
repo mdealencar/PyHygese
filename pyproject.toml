@@ -9,3 +9,6 @@ requires-python=">=3.10"
 [build-system]
 requires = ["scikit-build-core"]
 build-backend = "scikit_build_core.build"
+
+[tool.scikit-build]
+cmake.build-type = "Release"
