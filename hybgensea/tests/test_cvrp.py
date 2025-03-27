@@ -1,5 +1,5 @@
 import numpy as np
-from hygese import AlgorithmParameters, Solver
+from hybgensea import AlgorithmParameters, Solver
 
 
 def get_data():

@@ -1,4 +1,4 @@
-from hygese import AlgorithmParameters, Solver
+from hybgensea import AlgorithmParameters, Solver
 # import random
 # import elkai
 # import numpy as np

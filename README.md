@@ -1,30 +1,23 @@
-# PyHygese
+## HybGenSea: Hybrid Genetic Search
 
-[![Build Status](https://github.com/chkwon/PyHygese/workflows/CI/badge.svg?branch=master)](https://github.com/chkwon/PyHygese/actions/workflows/ci.yml?query=workflow%3ACI)
-[![codecov](https://codecov.io/gh/chkwon/PyHygese/branch/master/graph/badge.svg)](https://codecov.io/gh/chkwon/PyHygese)
-[![PyPI version](https://badge.fury.io/py/hygese.svg)](https://badge.fury.io/py/hygese)
+This is a rebranded fork of [PyHygese](https://github.com/chkwon/PyHygese) by [Changhyun Kwon](https://github.com/chkwon).
 
-*This package is under active development. It can introduce breaking changes anytime. Please use it at your own risk.*
 
 **A solver for the Capacitated Vehicle Routing Problem (CVRP)**
 
 This package provides a simple Python wrapper for the Hybrid Genetic Search solver for Capacitated Vehicle Routing Problems [(HGS-CVRP)](https://github.com/vidalt/HGS-CVRP).
 
-The installation requires `gcc`, `make`, and `cmake` to build.
-On Windows, for example, you can install them by `scoop install gcc make cmake` using [Scoop](scoop.sh).
-Then, install the PyHygese package:
-```
-pip install hygese
-```
-<!-- ```
-python3 -m pip install git+https://github.com/chkwon/PyHygese
-``` -->
+## Installation
 
+```
+pip install hybgensea
+```
 
 ## CVRP Example (random)
+
 ```python
 import numpy as np 
-import hygese as hgs
+import hybgensea as hgs
 
 n = 20
 x = (np.random.rand(n) * 1000)
@@ -66,7 +59,7 @@ print(result.routes)
 ```python
 # A CVRP from https://developers.google.com/optimization/routing/cvrp
 import numpy as np 
-import hygese as hgs 
+import hybgensea as hgs 
 
 data = dict()
 data['distance_matrix'] = [
@@ -109,7 +102,7 @@ print(result.routes)
 
 ```python
 # A TSP example from https://developers.google.com/optimization/routing/tsp
-import hygese as hgs 
+import hybgensea as hgs 
 
 data = dict()
 data['distance_matrix'] = [
@@ -139,6 +132,7 @@ print(result.routes)
 ```
 
 ## Algorithm Parameters
+
 Configurable algorithm parameters are defined in the `AlgorithmParameters` dataclass with default values:
 ```python
 @dataclass
@@ -148,13 +142,18 @@ class AlgorithmParameters:
     lambda_: int = 40
     nbElite: int = 4
     nbClose: int = 5
+    nbIterPenaltyManagement: int = 100
     targetFeasible: float = 0.2
-    seed: int = 1
+    penaltyDecrease: float = 0.85
+    penaltyIncrease: float = 1.2
+    seed: int = 0
     nbIter: int = 20000
+    nbIterTraces: int = 500
     timeLimit: float = 0.0
     useSwapStar: bool = True
 ```
 
 ## Others
+
 A Julia wrapper is available: [Hygese.jl](https://github.com/chkwon/Hygese.jl)
 

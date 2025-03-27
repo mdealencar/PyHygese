@@ -31,7 +31,7 @@ FetchContent_MakeAvailable(hgscvrp)
 
 # runtime library
 if(CMAKE_HOST_WIN32)
-  install(TARGETS lib RUNTIME DESTINATION hygese)
+  install(TARGETS lib RUNTIME DESTINATION hybgensea)
 else()
-  install(TARGETS lib LIBRARY DESTINATION hygese)
+  install(TARGETS lib LIBRARY DESTINATION hybgensea)
 endif()
