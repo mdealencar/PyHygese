@@ -47,5 +47,11 @@ jobs:
         run: |
           pytest -s --cov=hygese --cov-report=xml --pyargs hygese.tests
 
+      - name: Upload coverage report as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage.xml
+          path: coverage.xml
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v2
