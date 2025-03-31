@@ -4,9 +4,8 @@
 name: CI
 
 on:
-  workflow_dispatch:
   push:
-    branches: [ master ]
+    branches: [ master, coverage_tuning ]
   pull_request:
     branches: [ master ]
 
