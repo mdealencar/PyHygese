@@ -11,7 +11,10 @@ jobs:
     name: Make SDist
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
       - name: Build SDist
         run: pipx run build --sdist
       - uses: actions/upload-artifact@v4
@@ -19,26 +22,38 @@ jobs:
           name: cibw-sdist
           path: dist/*.tar.gz
   build_wheels:
-    name: Wheels on ${{ matrix.os }}
+    name: Wheels on ${{ matrix.os }}, ${{ matrix.manylinux && format('-{0}', matrix.manylinux) || '' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-13, macos-14]
+        include:
+          # Linux builds: one job per manylinux baseline
+          - os: ubuntu-latest
+            manylinux: manylinux2014
+            manylinux_x86_64_image: manylinux2014
+          - os: ubuntu-latest
+            manylinux: manylinux_2_28
+            manylinux_x86_64_image: manylinux_2_28
+          - os: ubuntu-latest
+            manylinux: manylinux_2_34
+            manylinux_x86_64_image: manylinux_2_34
+          # Windows & macOS builds
+          - os: windows-latest
+          - os: macos-13   # Intel
+          - os: macos-14   # Apple Silicon
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           submodules: true
-      - uses: pypa/cibuildwheel@v3
+      - uses: pypa/cibuildwheel@v3.1
         env:
-          CIBW_ARCHS: auto64
-          CIBW_SKIP: "pp*"
-          CIBW_MANYLINUX_X86_64_IMAGE: quay.io/pypa/manylinux_2_34
+          CIBW_MANYLINUX_X86_64_IMAGE: ${{ matrix.manylinux_x86_64_image }}
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: cibw-wheels-${{ matrix.os }}
+          name: cibw-wheels-${{ matrix.os }}${{ matrix.manylinux && format('-{0}', matrix.manylinux) || '' }}
           path: wheelhouse/*.whl
   publish_all:
     name: Publish on PyPI
@@ -51,14 +66,16 @@ jobs:
       contents: read
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: cibw-*
           path: dist
           merge-multiple: true
       - name: Generate artifact attestations
-        uses: actions/attest-build-provenance@v2.2.3
+        uses: actions/attest-build-provenance@v3
         with:
           subject-path: "dist/*"
       - name: Upload to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
