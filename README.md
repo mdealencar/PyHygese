@@ -12,6 +12,11 @@ This package provides a simple Python wrapper for the Hybrid Genetic Search solv
 ```
 pip install hybgensea
 ```
+Or:
+```
+conda install --channel=conda-forge hybgensea
+```
+
 
 ## CVRP Example (random)
 
