@@ -7,8 +7,6 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 if(WIN32)
-    # MSBUILD toolchain names the shared library as hgscvrp.dll
-    # this forces it to use libhgscvrp.dll
     set(CMAKE_SHARED_LIBRARY_PREFIX_CXX "lib")
 endif()
 
@@ -28,7 +26,17 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(hgscvrp)
 
-# runtime library
+FetchContent_Declare(
+  nanobind
+  GIT_REPOSITORY https://github.com/wjakob/nanobind.git
+  GIT_TAG v2.5.0
+)
+FetchContent_MakeAvailable(nanobind)
+
+nanobind_add_module(_core STABLE_ABI hybgensea/_core.cpp)
+target_link_libraries(_core PRIVATE lib)
+
+install(TARGETS _core LIBRARY DESTINATION hybgensea)
 if(CMAKE_HOST_WIN32)
   install(TARGETS lib RUNTIME DESTINATION hybgensea)
 else()
