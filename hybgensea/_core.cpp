@@ -46,6 +46,27 @@ private:
     int saved_stdout_fd_ = -1;
 };
 
+
+
+static AlgorithmParameters from_python_ap(const nb::dict &ap) {
+    return AlgorithmParameters{
+        nb::cast<int>(ap["nbGranular"]),
+        nb::cast<int>(ap["mu"]),
+        nb::cast<int>(ap["lambda"]),
+        nb::cast<int>(ap["nbElite"]),
+        nb::cast<int>(ap["nbClose"]),
+        nb::cast<int>(ap["nbIterPenaltyManagement"]),
+        nb::cast<double>(ap["targetFeasible"]),
+        nb::cast<double>(ap["penaltyDecrease"]),
+        nb::cast<double>(ap["penaltyIncrease"]),
+        nb::cast<int>(ap["seed"]),
+        nb::cast<int>(ap["nbIter"]),
+        nb::cast<int>(ap["nbIterTraces"]),
+        nb::cast<double>(ap["timeLimit"]),
+        nb::cast<int>(ap["useSwapStar"]),
+    };
+}
+
 static nb::dict to_python_solution(Solution *sol) {
     if (!sol) {
         throw std::runtime_error("HGS-CVRP returned a null solution pointer.");
@@ -123,6 +144,83 @@ NB_MODULE(_core, m) {
         "nb_iter_penalty_management"_a, "target_feasible"_a,
         "penalty_decrease"_a, "penalty_increase"_a, "seed"_a, "nb_iter"_a,
         "nb_iter_traces"_a, "time_limit"_a, "use_swap_star"_a, "verbose"_a
+    );
+
+    m.def(
+        "solve_cvrp_compact",
+        [](int n,
+           nb::object x_obj,
+           nb::object y_obj,
+           nb::object service_times_obj,
+           nb::object demand_obj,
+           double vehicle_capacity,
+           double duration_limit,
+           bool is_rounding_integer,
+           bool is_duration_constraint,
+           int max_nb_veh,
+           nb::dict ap_dict,
+           bool verbose) {
+            AlgorithmParameters ap = from_python_ap(ap_dict);
+            auto x = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(x_obj);
+            auto y = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(y_obj);
+            auto service_times = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(service_times_obj);
+            auto demand = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(demand_obj);
+
+            ScopedStdoutFdRedirect redirect;
+            Solution *sol = solve_cvrp(
+                n, const_cast<double *>(x.data()), const_cast<double *>(y.data()),
+                const_cast<double *>(service_times.data()), const_cast<double *>(demand.data()),
+                vehicle_capacity, duration_limit,
+                static_cast<char>(is_rounding_integer),
+                static_cast<char>(is_duration_constraint), max_nb_veh, &ap,
+                static_cast<char>(verbose));
+
+            nb::dict result = to_python_solution(sol);
+            delete_solution(sol);
+            return result;
+        },
+        "n"_a, "x"_a, "y"_a, "service_times"_a, "demand"_a,
+        "vehicle_capacity"_a, "duration_limit"_a, "is_rounding_integer"_a,
+        "is_duration_constraint"_a, "max_nb_veh"_a, "algorithm_parameters"_a,
+        "verbose"_a
+    );
+
+    m.def(
+        "solve_cvrp_dist_mtx_compact",
+        [](int n,
+           nb::object x_obj,
+           nb::object y_obj,
+           nb::object dist_mtx_obj,
+           nb::object service_times_obj,
+           nb::object demand_obj,
+           double vehicle_capacity,
+           double duration_limit,
+           bool is_duration_constraint,
+           int max_nb_veh,
+           nb::dict ap_dict,
+           bool verbose) {
+            AlgorithmParameters ap = from_python_ap(ap_dict);
+            auto x = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(x_obj);
+            auto y = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(y_obj);
+            auto dist_mtx = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(dist_mtx_obj);
+            auto service_times = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(service_times_obj);
+            auto demand = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(demand_obj);
+
+            ScopedStdoutFdRedirect redirect;
+            Solution *sol = solve_cvrp_dist_mtx(
+                n, const_cast<double *>(x.data()), const_cast<double *>(y.data()),
+                const_cast<double *>(dist_mtx.data()), const_cast<double *>(service_times.data()),
+                const_cast<double *>(demand.data()), vehicle_capacity, duration_limit,
+                static_cast<char>(is_duration_constraint), max_nb_veh, &ap,
+                static_cast<char>(verbose));
+
+            nb::dict result = to_python_solution(sol);
+            delete_solution(sol);
+            return result;
+        },
+        "n"_a, "x"_a, "y"_a, "dist_mtx"_a, "service_times"_a, "demand"_a,
+        "vehicle_capacity"_a, "duration_limit"_a, "is_duration_constraint"_a,
+        "max_nb_veh"_a, "algorithm_parameters"_a, "verbose"_a
     );
 
     m.def(

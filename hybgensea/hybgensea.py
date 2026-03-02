@@ -35,6 +35,25 @@ class RoutingSolution:
 
 
 class Solver:
+    @staticmethod
+    def _ap_payload(algorithm_parameters):
+        return {
+            "nbGranular": int(algorithm_parameters.nbGranular),
+            "mu": int(algorithm_parameters.mu),
+            "lambda": int(algorithm_parameters.lambda_),
+            "nbElite": int(algorithm_parameters.nbElite),
+            "nbClose": int(algorithm_parameters.nbClose),
+            "nbIterPenaltyManagement": int(algorithm_parameters.nbIterPenaltyManagement),
+            "targetFeasible": float(algorithm_parameters.targetFeasible),
+            "penaltyDecrease": float(algorithm_parameters.penaltyDecrease),
+            "penaltyIncrease": float(algorithm_parameters.penaltyIncrease),
+            "seed": int(algorithm_parameters.seed),
+            "nbIter": int(algorithm_parameters.nbIter),
+            "nbIterTraces": int(algorithm_parameters.nbIterTraces),
+            "timeLimit": float(algorithm_parameters.timeLimit),
+            "useSwapStar": int(bool(algorithm_parameters.useSwapStar)),
+        }
+
     def __init__(self, parameters=AlgorithmParameters(), verbose=True):
         self.algorithm_parameters = parameters
         self.verbose = verbose
@@ -146,8 +165,8 @@ class Solver:
         verbose,
     ):
         n_nodes = x_coords.size
-        payload = _core.solve_cvrp(
-            n_nodes,
+        payload = _core.solve_cvrp_compact(
+            int(n_nodes),
             np.ascontiguousarray(x_coords, dtype=np.float64),
             np.ascontiguousarray(y_coords, dtype=np.float64),
             np.ascontiguousarray(service_times, dtype=np.float64),
@@ -157,20 +176,7 @@ class Solver:
             bool(is_rounding_integer),
             bool(is_duration_constraint),
             int(maximum_number_of_vehicles),
-            int(algorithm_parameters.nbGranular),
-            int(algorithm_parameters.mu),
-            int(algorithm_parameters.lambda_),
-            int(algorithm_parameters.nbElite),
-            int(algorithm_parameters.nbClose),
-            int(algorithm_parameters.nbIterPenaltyManagement),
-            float(algorithm_parameters.targetFeasible),
-            float(algorithm_parameters.penaltyDecrease),
-            float(algorithm_parameters.penaltyIncrease),
-            int(algorithm_parameters.seed),
-            int(algorithm_parameters.nbIter),
-            int(algorithm_parameters.nbIterTraces),
-            float(algorithm_parameters.timeLimit),
-            bool(algorithm_parameters.useSwapStar),
+            Solver._ap_payload(algorithm_parameters),
             bool(verbose),
         )
         return RoutingSolution(payload)
@@ -190,8 +196,8 @@ class Solver:
         verbose,
     ):
         n_nodes = x_coords.size
-        payload = _core.solve_cvrp_dist_mtx(
-            n_nodes,
+        payload = _core.solve_cvrp_dist_mtx_compact(
+            int(n_nodes),
             np.ascontiguousarray(x_coords, dtype=np.float64),
             np.ascontiguousarray(y_coords, dtype=np.float64),
             np.ascontiguousarray(dist_mtx.reshape(n_nodes * n_nodes), dtype=np.float64),
@@ -201,20 +207,7 @@ class Solver:
             float(duration_limit),
             bool(is_duration_constraint),
             int(maximum_number_of_vehicles),
-            int(algorithm_parameters.nbGranular),
-            int(algorithm_parameters.mu),
-            int(algorithm_parameters.lambda_),
-            int(algorithm_parameters.nbElite),
-            int(algorithm_parameters.nbClose),
-            int(algorithm_parameters.nbIterPenaltyManagement),
-            float(algorithm_parameters.targetFeasible),
-            float(algorithm_parameters.penaltyDecrease),
-            float(algorithm_parameters.penaltyIncrease),
-            int(algorithm_parameters.seed),
-            int(algorithm_parameters.nbIter),
-            int(algorithm_parameters.nbIterTraces),
-            float(algorithm_parameters.timeLimit),
-            bool(algorithm_parameters.useSwapStar),
+            Solver._ap_payload(algorithm_parameters),
             bool(verbose),
         )
         return RoutingSolution(payload)
