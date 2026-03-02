@@ -6,9 +6,12 @@
 #include "C_Interface.h"
 
 #include <cstdio>
+#include <mutex>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #if defined(_WIN32)
+#  include <fcntl.h>
 #  include <io.h>
 #else
 #  include <unistd.h>
@@ -22,19 +25,22 @@ static constexpr int HG_STDOUT_FILENO = 1;
 static int hg_dup(int fd) { return _dup(fd); }
 static int hg_dup2(int oldfd, int newfd) { return _dup2(oldfd, newfd); }
 static int hg_close(int fd) { return _close(fd); }
+static int hg_pipe(int fds[2]) { return _pipe(fds, 4096, _O_BINARY); }
+static int hg_read(int fd, char *buf, int len) { return _read(fd, buf, len); }
 #else
 static constexpr int HG_STDOUT_FILENO = STDOUT_FILENO;
 static int hg_dup(int fd) { return dup(fd); }
 static int hg_dup2(int oldfd, int newfd) { return dup2(oldfd, newfd); }
 static int hg_close(int fd) { return close(fd); }
+static int hg_pipe(int fds[2]) { return pipe(fds); }
+static int hg_read(int fd, char *buf, int len) { return static_cast<int>(read(fd, buf, static_cast<size_t>(len))); }
 #endif
 
 class ScopedStdoutFdRedirect {
 public:
     ScopedStdoutFdRedirect() {
         nb::object sys = nb::module_::import_("sys");
-        nb::object stdout_obj = sys.attr("stdout");
-        int py_stdout_fd = nb::cast<int>(stdout_obj.attr("fileno")());
+        py_stdout_ = sys.attr("stdout");
 
         std::fflush(stdout);
         saved_stdout_fd_ = hg_dup(HG_STDOUT_FILENO);
@@ -42,17 +48,66 @@ public:
             throw std::runtime_error("Failed to duplicate STDOUT_FILENO.");
         }
 
-        if (hg_dup2(py_stdout_fd, HG_STDOUT_FILENO) == -1) {
+        int pipe_fds[2] = {-1, -1};
+        if (hg_pipe(pipe_fds) == -1) {
             hg_close(saved_stdout_fd_);
-            throw std::runtime_error("Failed to redirect STDOUT_FILENO to sys.stdout.");
+            throw std::runtime_error("Failed to create stdout capture pipe.");
         }
+        pipe_read_fd_ = pipe_fds[0];
+        pipe_write_fd_ = pipe_fds[1];
+
+        if (hg_dup2(pipe_write_fd_, HG_STDOUT_FILENO) == -1) {
+            hg_close(saved_stdout_fd_);
+            hg_close(pipe_read_fd_);
+            hg_close(pipe_write_fd_);
+            throw std::runtime_error("Failed to redirect STDOUT_FILENO to capture pipe.");
+        }
+
+        reader_thread_ = std::thread([this]() {
+            char buffer[1024];
+            while (true) {
+                int n = hg_read(pipe_read_fd_, buffer, 1024);
+                if (n <= 0) {
+                    break;
+                }
+                std::lock_guard<std::mutex> guard(captured_mutex_);
+                captured_.append(buffer, static_cast<size_t>(n));
+            }
+        });
     }
 
     ~ScopedStdoutFdRedirect() {
+        std::fflush(stdout);
+
         if (saved_stdout_fd_ != -1) {
-            std::fflush(stdout);
             hg_dup2(saved_stdout_fd_, HG_STDOUT_FILENO);
             hg_close(saved_stdout_fd_);
+            saved_stdout_fd_ = -1;
+        }
+
+        if (pipe_write_fd_ != -1) {
+            hg_close(pipe_write_fd_);
+            pipe_write_fd_ = -1;
+        }
+
+        if (reader_thread_.joinable()) {
+            reader_thread_.join();
+        }
+
+        if (pipe_read_fd_ != -1) {
+            hg_close(pipe_read_fd_);
+            pipe_read_fd_ = -1;
+        }
+
+        std::string captured;
+        {
+            std::lock_guard<std::mutex> guard(captured_mutex_);
+            captured.swap(captured_);
+        }
+
+        if (!captured.empty()) {
+            py_stdout_.attr("write")(captured);
+            py_stdout_.attr("flush")();
         }
     }
 
@@ -60,9 +115,14 @@ public:
     ScopedStdoutFdRedirect &operator=(const ScopedStdoutFdRedirect &) = delete;
 
 private:
+    nb::object py_stdout_;
     int saved_stdout_fd_ = -1;
+    int pipe_read_fd_ = -1;
+    int pipe_write_fd_ = -1;
+    std::thread reader_thread_;
+    std::mutex captured_mutex_;
+    std::string captured_;
 };
-
 
 
 static int dict_int(const nb::dict &d, const char *key) {
