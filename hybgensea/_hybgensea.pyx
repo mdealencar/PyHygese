@@ -62,7 +62,7 @@ cdef extern from *:
     cdef struct CAlgorithmParameters "AlgorithmParameters":
         int nbGranular
         int mu
-        int lambda_
+        int lambda_ "lambda"
         int nbElite
         int nbClose
         int nbIterPenaltyManagement
