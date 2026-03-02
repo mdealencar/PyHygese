@@ -8,10 +8,26 @@
 #include <cstdio>
 #include <stdexcept>
 #include <string>
-#include <unistd.h>
+#if defined(_WIN32)
+#  include <io.h>
+#else
+#  include <unistd.h>
+#endif
 
 namespace nb = nanobind;
 using namespace nb::literals;
+
+#if defined(_WIN32)
+static constexpr int HG_STDOUT_FILENO = 1;
+static int hg_dup(int fd) { return _dup(fd); }
+static int hg_dup2(int oldfd, int newfd) { return _dup2(oldfd, newfd); }
+static int hg_close(int fd) { return _close(fd); }
+#else
+static constexpr int HG_STDOUT_FILENO = STDOUT_FILENO;
+static int hg_dup(int fd) { return dup(fd); }
+static int hg_dup2(int oldfd, int newfd) { return dup2(oldfd, newfd); }
+static int hg_close(int fd) { return close(fd); }
+#endif
 
 class ScopedStdoutFdRedirect {
 public:
@@ -21,13 +37,13 @@ public:
         int py_stdout_fd = nb::cast<int>(stdout_obj.attr("fileno")());
 
         std::fflush(stdout);
-        saved_stdout_fd_ = dup(STDOUT_FILENO);
+        saved_stdout_fd_ = hg_dup(HG_STDOUT_FILENO);
         if (saved_stdout_fd_ == -1) {
             throw std::runtime_error("Failed to duplicate STDOUT_FILENO.");
         }
 
-        if (dup2(py_stdout_fd, STDOUT_FILENO) == -1) {
-            close(saved_stdout_fd_);
+        if (hg_dup2(py_stdout_fd, HG_STDOUT_FILENO) == -1) {
+            hg_close(saved_stdout_fd_);
             throw std::runtime_error("Failed to redirect STDOUT_FILENO to sys.stdout.");
         }
     }
@@ -35,8 +51,8 @@ public:
     ~ScopedStdoutFdRedirect() {
         if (saved_stdout_fd_ != -1) {
             std::fflush(stdout);
-            dup2(saved_stdout_fd_, STDOUT_FILENO);
-            close(saved_stdout_fd_);
+            hg_dup2(saved_stdout_fd_, HG_STDOUT_FILENO);
+            hg_close(saved_stdout_fd_);
         }
     }
 
