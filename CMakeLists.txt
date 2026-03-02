@@ -41,6 +41,7 @@ endif()
 
 nanobind_add_module(_core STABLE_ABI hybgensea/_core.cpp)
 target_link_libraries(_core PRIVATE lib)
+target_include_directories(_core PRIVATE ${hgscvrp_SOURCE_DIR}/Program)
 
 install(TARGETS _core LIBRARY DESTINATION hybgensea)
 if(CMAKE_HOST_WIN32)
