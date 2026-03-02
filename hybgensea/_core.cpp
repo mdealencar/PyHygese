@@ -72,10 +72,10 @@ NB_MODULE(_core, m) {
     m.def(
         "solve_cvrp",
         [](int n,
-           nb::ndarray<double, nb::c_contig, nb::device::cpu> x,
-           nb::ndarray<double, nb::c_contig, nb::device::cpu> y,
-           nb::ndarray<double, nb::c_contig, nb::device::cpu> service_times,
-           nb::ndarray<double, nb::c_contig, nb::device::cpu> demand,
+           nb::ndarray<const double, nb::c_contig, nb::device::cpu> x,
+           nb::ndarray<const double, nb::c_contig, nb::device::cpu> y,
+           nb::ndarray<const double, nb::c_contig, nb::device::cpu> service_times,
+           nb::ndarray<const double, nb::c_contig, nb::device::cpu> demand,
            double vehicle_capacity, double duration_limit, bool is_rounding_integer,
            bool is_duration_constraint, int max_nb_veh,
            int nb_granular, int mu, int lambda_value, int nb_elite, int nb_close,
@@ -101,7 +101,7 @@ NB_MODULE(_core, m) {
 
             ScopedStdoutFdRedirect redirect;
             Solution *sol = solve_cvrp(
-                n, x.data(), y.data(), service_times.data(), demand.data(),
+                n, const_cast<double *>(x.data()), const_cast<double *>(y.data()), const_cast<double *>(service_times.data()), const_cast<double *>(demand.data()),
                 vehicle_capacity, duration_limit,
                 static_cast<char>(is_rounding_integer),
                 static_cast<char>(is_duration_constraint), max_nb_veh, &ap,
@@ -123,11 +123,11 @@ NB_MODULE(_core, m) {
     m.def(
         "solve_cvrp_dist_mtx",
         [](int n,
-           nb::ndarray<double, nb::c_contig, nb::device::cpu> x,
-           nb::ndarray<double, nb::c_contig, nb::device::cpu> y,
-           nb::ndarray<double, nb::c_contig, nb::device::cpu> dist_mtx,
-           nb::ndarray<double, nb::c_contig, nb::device::cpu> service_times,
-           nb::ndarray<double, nb::c_contig, nb::device::cpu> demand,
+           nb::ndarray<const double, nb::c_contig, nb::device::cpu> x,
+           nb::ndarray<const double, nb::c_contig, nb::device::cpu> y,
+           nb::ndarray<const double, nb::c_contig, nb::device::cpu> dist_mtx,
+           nb::ndarray<const double, nb::c_contig, nb::device::cpu> service_times,
+           nb::ndarray<const double, nb::c_contig, nb::device::cpu> demand,
            double vehicle_capacity, double duration_limit,
            bool is_duration_constraint, int max_nb_veh,
            int nb_granular, int mu, int lambda_value, int nb_elite, int nb_close,
@@ -153,7 +153,7 @@ NB_MODULE(_core, m) {
 
             ScopedStdoutFdRedirect redirect;
             Solution *sol = solve_cvrp_dist_mtx(
-                n, x.data(), y.data(), dist_mtx.data(), service_times.data(), demand.data(),
+                n, const_cast<double *>(x.data()), const_cast<double *>(y.data()), const_cast<double *>(dist_mtx.data()), const_cast<double *>(service_times.data()), const_cast<double *>(demand.data()),
                 vehicle_capacity, duration_limit,
                 static_cast<char>(is_duration_constraint), max_nb_veh, &ap,
                 static_cast<char>(verbose));
