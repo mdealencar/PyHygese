@@ -264,83 +264,137 @@ class Solver:
 
         return self.solve_cvrp(data, rounding=rounding)
 
-    cdef RoutingSolution _solve_cvrp(
+    def _solve_cvrp(
         self,
-        cnp.ndarray[cnp.float64_t, ndim=1] x_coords,
-        cnp.ndarray[cnp.float64_t, ndim=1] y_coords,
-        cnp.ndarray[cnp.float64_t, ndim=1] service_times,
-        cnp.ndarray[cnp.float64_t, ndim=1] demand,
-        double vehicle_capacity,
-        double duration_limit,
-        bint is_rounding_integer,
-        bint is_duration_constraint,
-        int maximum_number_of_vehicles,
-        AlgorithmParameters algorithm_parameters,
-        bint verbose,
+        x_coords,
+        y_coords,
+        service_times,
+        demand,
+        vehicle_capacity,
+        duration_limit,
+        is_rounding_integer,
+        is_duration_constraint,
+        maximum_number_of_vehicles,
+        algorithm_parameters,
+        verbose,
     ):
-        cdef int n_nodes = x_coords.shape[0]
-        cdef CAlgorithmParameters ap = _algorithm_parameters_as_c(algorithm_parameters)
-        cdef CSolution* sol_p
-
-        _sync_c_stdout_with_python()
-        sol_p = solve_cvrp(
-            n_nodes,
-            <double*> x_coords.data,
-            <double*> y_coords.data,
-            <double*> service_times.data,
-            <double*> demand.data,
+        return _solve_cvrp_impl(
+            np.ascontiguousarray(x_coords, dtype=np.float64),
+            np.ascontiguousarray(y_coords, dtype=np.float64),
+            np.ascontiguousarray(service_times, dtype=np.float64),
+            np.ascontiguousarray(demand, dtype=np.float64),
             vehicle_capacity,
             duration_limit,
-            <char>is_rounding_integer,
-            <char>is_duration_constraint,
+            is_rounding_integer,
+            is_duration_constraint,
             maximum_number_of_vehicles,
-            &ap,
-            <char>verbose,
+            algorithm_parameters,
+            verbose,
         )
 
-        try:
-            return _routing_solution_from_ptr(sol_p)
-        finally:
-            if sol_p != NULL:
-                delete_solution(sol_p)
-
-    cdef RoutingSolution _solve_cvrp_dist_mtx(
+    def _solve_cvrp_dist_mtx(
         self,
-        cnp.ndarray[cnp.float64_t, ndim=1] x_coords,
-        cnp.ndarray[cnp.float64_t, ndim=1] y_coords,
-        cnp.ndarray[cnp.float64_t, ndim=2] dist_mtx,
-        cnp.ndarray[cnp.float64_t, ndim=1] service_times,
-        cnp.ndarray[cnp.float64_t, ndim=1] demand,
-        double vehicle_capacity,
-        double duration_limit,
-        bint is_duration_constraint,
-        int maximum_number_of_vehicles,
-        AlgorithmParameters algorithm_parameters,
-        bint verbose,
+        x_coords,
+        y_coords,
+        dist_mtx,
+        service_times,
+        demand,
+        vehicle_capacity,
+        duration_limit,
+        is_duration_constraint,
+        maximum_number_of_vehicles,
+        algorithm_parameters,
+        verbose,
     ):
-        cdef int n_nodes = x_coords.shape[0]
-        cdef cnp.ndarray[cnp.float64_t, ndim=2, mode="c"] dist_mtx_c = np.ascontiguousarray(dist_mtx)
-        cdef CAlgorithmParameters ap = _algorithm_parameters_as_c(algorithm_parameters)
-        cdef CSolution* sol_p
-
-        _sync_c_stdout_with_python()
-        sol_p = solve_cvrp_dist_mtx(
-            n_nodes,
-            <double*> x_coords.data,
-            <double*> y_coords.data,
-            <double*> dist_mtx_c.data,
-            <double*> service_times.data,
-            <double*> demand.data,
+        return _solve_cvrp_dist_mtx_impl(
+            np.ascontiguousarray(x_coords, dtype=np.float64),
+            np.ascontiguousarray(y_coords, dtype=np.float64),
+            np.ascontiguousarray(dist_mtx, dtype=np.float64),
+            np.ascontiguousarray(service_times, dtype=np.float64),
+            np.ascontiguousarray(demand, dtype=np.float64),
             vehicle_capacity,
             duration_limit,
-            <char>is_duration_constraint,
+            is_duration_constraint,
             maximum_number_of_vehicles,
-            &ap,
-            <char>verbose,
+            algorithm_parameters,
+            verbose,
         )
 
-        try:
-            return _routing_solution_from_ptr(sol_p)
-        finally:
-            if sol_p != NULL:
-                delete_solution(sol_p)
+cdef RoutingSolution _solve_cvrp_impl(
+    cnp.ndarray[cnp.float64_t, ndim=1, mode="c"] x_coords,
+    cnp.ndarray[cnp.float64_t, ndim=1, mode="c"] y_coords,
+    cnp.ndarray[cnp.float64_t, ndim=1, mode="c"] service_times,
+    cnp.ndarray[cnp.float64_t, ndim=1, mode="c"] demand,
+    double vehicle_capacity,
+    double duration_limit,
+    bint is_rounding_integer,
+    bint is_duration_constraint,
+    int maximum_number_of_vehicles,
+    AlgorithmParameters algorithm_parameters,
+    bint verbose,
+):
+    cdef int n_nodes = x_coords.shape[0]
+    cdef CAlgorithmParameters ap = _algorithm_parameters_as_c(algorithm_parameters)
+    cdef CSolution* sol_p
+
+    _sync_c_stdout_with_python()
+    sol_p = solve_cvrp(
+        n_nodes,
+        <double*> x_coords.data,
+        <double*> y_coords.data,
+        <double*> service_times.data,
+        <double*> demand.data,
+        vehicle_capacity,
+        duration_limit,
+        <char>is_rounding_integer,
+        <char>is_duration_constraint,
+        maximum_number_of_vehicles,
+        &ap,
+        <char>verbose,
+    )
+
+    try:
+        return _routing_solution_from_ptr(sol_p)
+    finally:
+        if sol_p != NULL:
+            delete_solution(sol_p)
+
+
+cdef RoutingSolution _solve_cvrp_dist_mtx_impl(
+    cnp.ndarray[cnp.float64_t, ndim=1, mode="c"] x_coords,
+    cnp.ndarray[cnp.float64_t, ndim=1, mode="c"] y_coords,
+    cnp.ndarray[cnp.float64_t, ndim=2, mode="c"] dist_mtx,
+    cnp.ndarray[cnp.float64_t, ndim=1, mode="c"] service_times,
+    cnp.ndarray[cnp.float64_t, ndim=1, mode="c"] demand,
+    double vehicle_capacity,
+    double duration_limit,
+    bint is_duration_constraint,
+    int maximum_number_of_vehicles,
+    AlgorithmParameters algorithm_parameters,
+    bint verbose,
+):
+    cdef int n_nodes = x_coords.shape[0]
+    cdef CAlgorithmParameters ap = _algorithm_parameters_as_c(algorithm_parameters)
+    cdef CSolution* sol_p
+
+    _sync_c_stdout_with_python()
+    sol_p = solve_cvrp_dist_mtx(
+        n_nodes,
+        <double*> x_coords.data,
+        <double*> y_coords.data,
+        <double*> dist_mtx.data,
+        <double*> service_times.data,
+        <double*> demand.data,
+        vehicle_capacity,
+        duration_limit,
+        <char>is_duration_constraint,
+        maximum_number_of_vehicles,
+        &ap,
+        <char>verbose,
+    )
+
+    try:
+        return _routing_solution_from_ptr(sol_p)
+    finally:
+        if sol_p != NULL:
+            delete_solution(sol_p)
