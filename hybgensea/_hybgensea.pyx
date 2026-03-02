@@ -5,12 +5,15 @@ import sys
 import numpy as np
 cimport numpy as cnp
 
-from libc.stdio cimport fflush, stdout, fileno
+from libc.stdio cimport FILE, fflush, stdout
 from libc.limits cimport INT_MAX
 from libc.float cimport DBL_MAX
 
 cdef extern from "Python.h":
     int PyObject_AsFileDescriptor(object)
+
+cdef extern from "stdio.h":
+    int fileno(FILE* stream)
 
 
 cdef extern from *:
@@ -115,7 +118,7 @@ class AlgorithmParameters:
 
 
 
-cdef CAlgorithmParameters _algorithm_parameters_as_c(AlgorithmParameters parameters):
+cdef CAlgorithmParameters _algorithm_parameters_as_c(parameters):
     cdef CAlgorithmParameters ap
     ap.nbGranular = parameters.nbGranular
     ap.mu = parameters.mu
@@ -150,7 +153,7 @@ def _sync_c_stdout_with_python():
     fflush(stdout)
 
 
-cdef RoutingSolution _routing_solution_from_ptr(CSolution* sol_ptr):
+cdef object _routing_solution_from_ptr(CSolution* sol_ptr):
     if sol_ptr == NULL:
         raise TypeError("The solution pointer is null.")
 
@@ -320,7 +323,7 @@ class Solver:
             verbose,
         )
 
-cdef RoutingSolution _solve_cvrp_impl(
+cdef object _solve_cvrp_impl(
     cnp.ndarray[cnp.float64_t, ndim=1, mode="c"] x_coords,
     cnp.ndarray[cnp.float64_t, ndim=1, mode="c"] y_coords,
     cnp.ndarray[cnp.float64_t, ndim=1, mode="c"] service_times,
@@ -330,7 +333,7 @@ cdef RoutingSolution _solve_cvrp_impl(
     bint is_rounding_integer,
     bint is_duration_constraint,
     int maximum_number_of_vehicles,
-    AlgorithmParameters algorithm_parameters,
+    object algorithm_parameters,
     bint verbose,
 ):
     cdef int n_nodes = x_coords.shape[0]
@@ -360,7 +363,7 @@ cdef RoutingSolution _solve_cvrp_impl(
             delete_solution(sol_p)
 
 
-cdef RoutingSolution _solve_cvrp_dist_mtx_impl(
+cdef object _solve_cvrp_dist_mtx_impl(
     cnp.ndarray[cnp.float64_t, ndim=1, mode="c"] x_coords,
     cnp.ndarray[cnp.float64_t, ndim=1, mode="c"] y_coords,
     cnp.ndarray[cnp.float64_t, ndim=2, mode="c"] dist_mtx,
@@ -370,7 +373,7 @@ cdef RoutingSolution _solve_cvrp_dist_mtx_impl(
     double duration_limit,
     bint is_duration_constraint,
     int maximum_number_of_vehicles,
-    AlgorithmParameters algorithm_parameters,
+    object algorithm_parameters,
     bint verbose,
 ):
     cdef int n_nodes = x_coords.shape[0]
