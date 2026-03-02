@@ -7,15 +7,13 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 if(WIN32)
-    # MSBUILD toolchain names the shared library as hgscvrp.dll
-    # this forces it to use libhgscvrp.dll
     set(CMAKE_SHARED_LIBRARY_PREFIX_CXX "lib")
 endif()
 
 project(
     ${SKBUILD_PROJECT_NAME}
     VERSION ${SKBUILD_PROJECT_VERSION}
-    LANGUAGES CXX
+    LANGUAGES C CXX
 )
 
 set(CMAKE_CXX_STANDARD 17)
@@ -28,7 +26,30 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(hgscvrp)
 
-# runtime library
+find_package(Python REQUIRED COMPONENTS Interpreter Development.Module NumPy)
+
+set(CYTHON_FILE ${CMAKE_SOURCE_DIR}/hybgensea/_hybgensea.pyx)
+set(CYTHON_CPP_FILE ${CMAKE_CURRENT_BINARY_DIR}/_hybgensea.cpp)
+
+add_custom_command(
+    OUTPUT ${CYTHON_CPP_FILE}
+    COMMAND ${Python_EXECUTABLE} -m cython --cplus -3 ${CYTHON_FILE} -o ${CYTHON_CPP_FILE}
+    DEPENDS ${CYTHON_FILE}
+    VERBATIM
+)
+
+Python_add_library(_hybgensea MODULE ${CYTHON_CPP_FILE} WITH_SOABI)
+target_include_directories(_hybgensea PRIVATE ${Python_NumPy_INCLUDE_DIRS})
+target_link_libraries(_hybgensea PRIVATE lib)
+
+if(APPLE)
+    set_target_properties(_hybgensea PROPERTIES INSTALL_RPATH "@loader_path")
+elseif(UNIX)
+    set_target_properties(_hybgensea PROPERTIES INSTALL_RPATH "$ORIGIN")
+endif()
+
+install(TARGETS _hybgensea LIBRARY DESTINATION hybgensea)
+
 if(CMAKE_HOST_WIN32)
   install(TARGETS lib RUNTIME DESTINATION hybgensea)
 else()

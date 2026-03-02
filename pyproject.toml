@@ -9,7 +9,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 
 [build-system]
-requires = ["scikit-build-core"]
+requires = ["scikit-build-core", "cython", "numpy"]
 build-backend = "scikit_build_core.build"
 
 [tool.scikit-build]
