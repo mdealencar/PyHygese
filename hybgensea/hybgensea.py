@@ -36,6 +36,11 @@ class RoutingSolution:
 
 class Solver:
     @staticmethod
+    def _normalize_seed(seed: int) -> int:
+        seed = int(seed)
+        return seed % C_INT_MAX
+
+    @staticmethod
     def _ap_payload(algorithm_parameters):
         return {
             "nbGranular": int(algorithm_parameters.nbGranular),
@@ -47,7 +52,7 @@ class Solver:
             "targetFeasible": float(algorithm_parameters.targetFeasible),
             "penaltyDecrease": float(algorithm_parameters.penaltyDecrease),
             "penaltyIncrease": float(algorithm_parameters.penaltyIncrease),
-            "seed": int(algorithm_parameters.seed),
+            "seed": Solver._normalize_seed(algorithm_parameters.seed),
             "nbIter": int(algorithm_parameters.nbIter),
             "nbIterTraces": int(algorithm_parameters.nbIterTraces),
             "timeLimit": float(algorithm_parameters.timeLimit),

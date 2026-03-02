@@ -7,6 +7,7 @@
 
 #include <cstdio>
 #include <stdexcept>
+#include <string>
 #include <unistd.h>
 
 namespace nb = nanobind;
@@ -48,22 +49,47 @@ private:
 
 
 
+static int dict_int(const nb::dict &d, const char *key) {
+    if (!d.contains(key)) {
+        throw std::runtime_error(std::string("Missing algorithm parameter: ") + key);
+    }
+    nb::object v = d[key];
+    try {
+        return nb::cast<int>(nb::module_::import_("builtins").attr("int")(v));
+    } catch (const std::exception &e) {
+        throw std::runtime_error(std::string("Invalid int algorithm parameter: ") + key + " (" + e.what() + ")");
+    }
+}
+
+static double dict_double(const nb::dict &d, const char *key) {
+    if (!d.contains(key)) {
+        throw std::runtime_error(std::string("Missing algorithm parameter: ") + key);
+    }
+    nb::object v = d[key];
+    try {
+        return nb::cast<double>(nb::module_::import_("builtins").attr("float")(v));
+    } catch (const std::exception &e) {
+        throw std::runtime_error(std::string("Invalid float algorithm parameter: ") + key + " (" + e.what() + ")");
+    }
+}
+
 static AlgorithmParameters from_python_ap(const nb::dict &ap) {
+    const char *lambda_key = ap.contains("lambda") ? "lambda" : "lambda_";
     return AlgorithmParameters{
-        nb::cast<int>(ap["nbGranular"]),
-        nb::cast<int>(ap["mu"]),
-        nb::cast<int>(ap["lambda"]),
-        nb::cast<int>(ap["nbElite"]),
-        nb::cast<int>(ap["nbClose"]),
-        nb::cast<int>(ap["nbIterPenaltyManagement"]),
-        nb::cast<double>(ap["targetFeasible"]),
-        nb::cast<double>(ap["penaltyDecrease"]),
-        nb::cast<double>(ap["penaltyIncrease"]),
-        nb::cast<int>(ap["seed"]),
-        nb::cast<int>(ap["nbIter"]),
-        nb::cast<int>(ap["nbIterTraces"]),
-        nb::cast<double>(ap["timeLimit"]),
-        nb::cast<int>(ap["useSwapStar"]),
+        dict_int(ap, "nbGranular"),
+        dict_int(ap, "mu"),
+        dict_int(ap, lambda_key),
+        dict_int(ap, "nbElite"),
+        dict_int(ap, "nbClose"),
+        dict_int(ap, "nbIterPenaltyManagement"),
+        dict_double(ap, "targetFeasible"),
+        dict_double(ap, "penaltyDecrease"),
+        dict_double(ap, "penaltyIncrease"),
+        dict_int(ap, "seed"),
+        dict_int(ap, "nbIter"),
+        dict_int(ap, "nbIterTraces"),
+        dict_double(ap, "timeLimit"),
+        dict_int(ap, "useSwapStar"),
     };
 }
 
@@ -120,10 +146,14 @@ NB_MODULE(_core, m) {
                 static_cast<int>(use_swap_star),
             };
 
-            auto x = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(x_obj);
-            auto y = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(y_obj);
-            auto service_times = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(service_times_obj);
-            auto demand = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(demand_obj);
+            nb::ndarray<const double, nb::c_contig, nb::device::cpu> x;
+            nb::ndarray<const double, nb::c_contig, nb::device::cpu> y;
+            nb::ndarray<const double, nb::c_contig, nb::device::cpu> service_times;
+            nb::ndarray<const double, nb::c_contig, nb::device::cpu> demand;
+            try { x = nb::cast<decltype(x)>(x_obj); } catch (...) { throw std::runtime_error("bad_cast: x"); }
+            try { y = nb::cast<decltype(y)>(y_obj); } catch (...) { throw std::runtime_error("bad_cast: y"); }
+            try { service_times = nb::cast<decltype(service_times)>(service_times_obj); } catch (...) { throw std::runtime_error("bad_cast: service_times"); }
+            try { demand = nb::cast<decltype(demand)>(demand_obj); } catch (...) { throw std::runtime_error("bad_cast: demand"); }
 
             ScopedStdoutFdRedirect redirect;
             Solution *sol = solve_cvrp(
@@ -161,10 +191,14 @@ NB_MODULE(_core, m) {
            nb::dict ap_dict,
            bool verbose) {
             AlgorithmParameters ap = from_python_ap(ap_dict);
-            auto x = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(x_obj);
-            auto y = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(y_obj);
-            auto service_times = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(service_times_obj);
-            auto demand = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(demand_obj);
+            nb::ndarray<const double, nb::c_contig, nb::device::cpu> x;
+            nb::ndarray<const double, nb::c_contig, nb::device::cpu> y;
+            nb::ndarray<const double, nb::c_contig, nb::device::cpu> service_times;
+            nb::ndarray<const double, nb::c_contig, nb::device::cpu> demand;
+            try { x = nb::cast<decltype(x)>(x_obj); } catch (...) { throw std::runtime_error("bad_cast: x"); }
+            try { y = nb::cast<decltype(y)>(y_obj); } catch (...) { throw std::runtime_error("bad_cast: y"); }
+            try { service_times = nb::cast<decltype(service_times)>(service_times_obj); } catch (...) { throw std::runtime_error("bad_cast: service_times"); }
+            try { demand = nb::cast<decltype(demand)>(demand_obj); } catch (...) { throw std::runtime_error("bad_cast: demand"); }
 
             ScopedStdoutFdRedirect redirect;
             Solution *sol = solve_cvrp(
@@ -200,11 +234,16 @@ NB_MODULE(_core, m) {
            nb::dict ap_dict,
            bool verbose) {
             AlgorithmParameters ap = from_python_ap(ap_dict);
-            auto x = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(x_obj);
-            auto y = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(y_obj);
-            auto dist_mtx = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(dist_mtx_obj);
-            auto service_times = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(service_times_obj);
-            auto demand = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(demand_obj);
+            nb::ndarray<const double, nb::c_contig, nb::device::cpu> x;
+            nb::ndarray<const double, nb::c_contig, nb::device::cpu> y;
+            nb::ndarray<const double, nb::c_contig, nb::device::cpu> dist_mtx;
+            nb::ndarray<const double, nb::c_contig, nb::device::cpu> service_times;
+            nb::ndarray<const double, nb::c_contig, nb::device::cpu> demand;
+            try { x = nb::cast<decltype(x)>(x_obj); } catch (...) { throw std::runtime_error("bad_cast: x"); }
+            try { y = nb::cast<decltype(y)>(y_obj); } catch (...) { throw std::runtime_error("bad_cast: y"); }
+            try { dist_mtx = nb::cast<decltype(dist_mtx)>(dist_mtx_obj); } catch (...) { throw std::runtime_error("bad_cast: dist_mtx"); }
+            try { service_times = nb::cast<decltype(service_times)>(service_times_obj); } catch (...) { throw std::runtime_error("bad_cast: service_times"); }
+            try { demand = nb::cast<decltype(demand)>(demand_obj); } catch (...) { throw std::runtime_error("bad_cast: demand"); }
 
             ScopedStdoutFdRedirect redirect;
             Solution *sol = solve_cvrp_dist_mtx(
@@ -254,11 +293,16 @@ NB_MODULE(_core, m) {
                 static_cast<int>(use_swap_star),
             };
 
-            auto x = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(x_obj);
-            auto y = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(y_obj);
-            auto dist_mtx = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(dist_mtx_obj);
-            auto service_times = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(service_times_obj);
-            auto demand = nb::cast<nb::ndarray<const double, nb::c_contig, nb::device::cpu>>(demand_obj);
+            nb::ndarray<const double, nb::c_contig, nb::device::cpu> x;
+            nb::ndarray<const double, nb::c_contig, nb::device::cpu> y;
+            nb::ndarray<const double, nb::c_contig, nb::device::cpu> dist_mtx;
+            nb::ndarray<const double, nb::c_contig, nb::device::cpu> service_times;
+            nb::ndarray<const double, nb::c_contig, nb::device::cpu> demand;
+            try { x = nb::cast<decltype(x)>(x_obj); } catch (...) { throw std::runtime_error("bad_cast: x"); }
+            try { y = nb::cast<decltype(y)>(y_obj); } catch (...) { throw std::runtime_error("bad_cast: y"); }
+            try { dist_mtx = nb::cast<decltype(dist_mtx)>(dist_mtx_obj); } catch (...) { throw std::runtime_error("bad_cast: dist_mtx"); }
+            try { service_times = nb::cast<decltype(service_times)>(service_times_obj); } catch (...) { throw std::runtime_error("bad_cast: service_times"); }
+            try { demand = nb::cast<decltype(demand)>(demand_obj); } catch (...) { throw std::runtime_error("bad_cast: demand"); }
 
             ScopedStdoutFdRedirect redirect;
             Solution *sol = solve_cvrp_dist_mtx(
