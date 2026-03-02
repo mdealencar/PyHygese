@@ -33,6 +33,12 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(nanobind)
 
+find_package(Python REQUIRED COMPONENTS Interpreter Development.Module Development.SABIModule)
+
+if(TARGET nanobind-static)
+  target_link_libraries(nanobind-static PRIVATE Python::Module)
+endif()
+
 nanobind_add_module(_core STABLE_ABI hybgensea/_core.cpp)
 target_link_libraries(_core PRIVATE lib)
 
