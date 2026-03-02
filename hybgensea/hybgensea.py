@@ -4,8 +4,21 @@ import sys
 
 from . import _core
 
-C_INT_MAX = 2 ** 31 - 1
+
+C_INT_BITS = 32
+C_INT_MIN = -(2 ** (C_INT_BITS - 1))
+C_INT_MAX = 2 ** (C_INT_BITS - 1) - 1
 C_DBL_MAX = sys.float_info.max
+
+
+def _to_c_int(value: int) -> int:
+    value = int(value)
+    if C_INT_MIN <= value <= C_INT_MAX:
+        return value
+
+    wrapped = ((value + (1 << (C_INT_BITS - 1))) % (1 << C_INT_BITS)) - (1 << (C_INT_BITS - 1))
+    return int(wrapped)
+
 
 
 @dataclass
@@ -37,18 +50,37 @@ class RoutingSolution:
 class Solver:
     def __init__(self, parameters=AlgorithmParameters(), verbose=True):
         self.algorithm_parameters = parameters
-        self.verbose = verbose
+        self.verbose = bool(verbose)
+
+    def _core_parameters(self):
+        ap = self.algorithm_parameters
+        return (
+            _to_c_int(ap.nbGranular),
+            _to_c_int(ap.mu),
+            _to_c_int(ap.lambda_),
+            _to_c_int(ap.nbElite),
+            _to_c_int(ap.nbClose),
+            _to_c_int(ap.nbIterPenaltyManagement),
+            float(ap.targetFeasible),
+            float(ap.penaltyDecrease),
+            float(ap.penaltyIncrease),
+            _to_c_int(ap.seed),
+            _to_c_int(ap.nbIter),
+            _to_c_int(ap.nbIterTraces),
+            float(ap.timeLimit),
+            bool(ap.useSwapStar),
+        )
 
     def solve_cvrp(self, data, rounding=True):
         demand = np.asarray(data["demands"], dtype=np.float64)
-        vehicle_capacity = data["vehicle_capacity"]
+        vehicle_capacity = float(data["vehicle_capacity"])
         n_nodes = len(demand)
 
         depot = data.get("depot", 0)
         if depot != 0:
             raise ValueError("In HGS, the depot location must be 0.")
 
-        maximum_number_of_vehicles = data.get("num_vehicles", C_INT_MAX)
+        maximum_number_of_vehicles = _to_c_int(data.get("num_vehicles", C_INT_MAX))
 
         service_times = data.get("service_times")
         if service_times is None:
@@ -59,9 +91,10 @@ class Solver:
         duration_limit = data.get("duration_limit")
         if duration_limit is None:
             is_duration_constraint = False
-            duration_limit = C_DBL_MAX
+            duration_limit = float(C_DBL_MAX)
         else:
             is_duration_constraint = True
+            duration_limit = float(duration_limit)
 
         x_coords = data.get("x_coordinates")
         y_coords = data.get("y_coordinates")
@@ -92,23 +125,10 @@ class Solver:
                 np.ascontiguousarray(service_times),
                 np.ascontiguousarray(demand),
                 vehicle_capacity,
-                duration_limit,
-                is_duration_constraint,
+                float(duration_limit),
+                bool(is_duration_constraint),
                 maximum_number_of_vehicles,
-                self.algorithm_parameters.nbGranular,
-                self.algorithm_parameters.mu,
-                self.algorithm_parameters.lambda_,
-                self.algorithm_parameters.nbElite,
-                self.algorithm_parameters.nbClose,
-                self.algorithm_parameters.nbIterPenaltyManagement,
-                self.algorithm_parameters.targetFeasible,
-                self.algorithm_parameters.penaltyDecrease,
-                self.algorithm_parameters.penaltyIncrease,
-                self.algorithm_parameters.seed,
-                self.algorithm_parameters.nbIter,
-                self.algorithm_parameters.nbIterTraces,
-                self.algorithm_parameters.timeLimit,
-                self.algorithm_parameters.useSwapStar,
+                *self._core_parameters(),
                 self.verbose,
             )
         else:
@@ -118,24 +138,11 @@ class Solver:
                 np.ascontiguousarray(service_times),
                 np.ascontiguousarray(demand),
                 vehicle_capacity,
-                duration_limit,
-                rounding,
-                is_duration_constraint,
+                float(duration_limit),
+                bool(rounding),
+                bool(is_duration_constraint),
                 maximum_number_of_vehicles,
-                self.algorithm_parameters.nbGranular,
-                self.algorithm_parameters.mu,
-                self.algorithm_parameters.lambda_,
-                self.algorithm_parameters.nbElite,
-                self.algorithm_parameters.nbClose,
-                self.algorithm_parameters.nbIterPenaltyManagement,
-                self.algorithm_parameters.targetFeasible,
-                self.algorithm_parameters.penaltyDecrease,
-                self.algorithm_parameters.penaltyIncrease,
-                self.algorithm_parameters.seed,
-                self.algorithm_parameters.nbIter,
-                self.algorithm_parameters.nbIterTraces,
-                self.algorithm_parameters.timeLimit,
-                self.algorithm_parameters.useSwapStar,
+                *self._core_parameters(),
                 self.verbose,
             )
 
