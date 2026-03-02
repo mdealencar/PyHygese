@@ -43,6 +43,18 @@ nanobind_add_module(_core STABLE_ABI hybgensea/_core.cpp)
 target_link_libraries(_core PRIVATE lib)
 target_include_directories(_core PRIVATE ${hgscvrp_SOURCE_DIR}/Program)
 
+
+set_target_properties(_core PROPERTIES
+  BUILD_RPATH "$ORIGIN"
+  INSTALL_RPATH "$ORIGIN"
+)
+if(APPLE)
+  set_target_properties(_core PROPERTIES
+    BUILD_RPATH "@loader_path"
+    INSTALL_RPATH "@loader_path"
+  )
+endif()
+
 install(TARGETS _core LIBRARY DESTINATION hybgensea)
 if(CMAKE_HOST_WIN32)
   install(TARGETS lib RUNTIME DESTINATION hybgensea)
