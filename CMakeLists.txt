@@ -31,7 +31,7 @@ execute_process(
 )
 find_package(nanobind CONFIG REQUIRED)
 
-nanobind_add_module(_core STABLE_ABI hybgensea/_core.cpp)
+nanobind_add_module(_core hybgensea/_core.cpp)
 target_include_directories(_core PRIVATE ${hgscvrp_SOURCE_DIR}/Program)
 target_link_libraries(_core PRIVATE objlib)
 
