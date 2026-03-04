@@ -45,12 +45,14 @@ class RoutingSolution:
         self.time = sol.time
         self.routes = sol.routes
         self.n_routes = len(sol.routes)
+        self.log = sol.log
 
 
 class Solver:
-    def __init__(self, parameters=AlgorithmParameters(), verbose=True):
+    def __init__(self, parameters=AlgorithmParameters(), verbose=True, log_callback=None):
         self.algorithm_parameters = parameters
         self.verbose = bool(verbose)
+        self.log_callback = log_callback
 
     def _core_parameters(self):
         ap = self.algorithm_parameters
@@ -130,6 +132,7 @@ class Solver:
                 maximum_number_of_vehicles,
                 *self._core_parameters(),
                 self.verbose,
+                self.log_callback,
             )
         else:
             sol = _core.solve_cvrp(
@@ -144,6 +147,7 @@ class Solver:
                 maximum_number_of_vehicles,
                 *self._core_parameters(),
                 self.verbose,
+                self.log_callback,
             )
 
         return RoutingSolution(sol)

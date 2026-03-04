@@ -1,96 +1,57 @@
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
+#include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
 
-#include <stdexcept>
+#include <cmath>
+#include <climits>
+#include <streambuf>
+#include <string>
 #include <vector>
 #include <iostream>
 
-extern "C" {
 #include "AlgorithmParameters.h"
-#include "C_Interface.h"
-}
+#include "Genetic.h"
 
 namespace nb = nanobind;
 
-#include <streambuf>
-#include <string>
-
-class PythonStdoutBuffer : public std::streambuf {
-public:
-    ~PythonStdoutBuffer() override { sync(); }
-
+// Custom streambuf that captures log output and optionally invokes a Python callback per line.
+class CallbackStreamBuf : public std::streambuf {
+    std::string line_buf_;
+    std::string full_log_;
+    nb::object callback_;
+    bool has_callback_;
 protected:
     int overflow(int c) override {
         if (c != EOF) {
-            buffer_.push_back(static_cast<char>(c));
-            if (c == '\n') {
-                flush_buffer();
-            }
+            line_buf_.push_back(static_cast<char>(c));
+            if (c == '\n') flush_line();
         }
         return c;
     }
-
-    int sync() override {
-        flush_buffer();
-        return 0;
-    }
-
+    int sync() override { flush_line(); return 0; }
 private:
-    void flush_buffer() {
-        if (buffer_.empty()) {
-            return;
+    void flush_line() {
+        if (line_buf_.empty()) return;
+        full_log_ += line_buf_;
+        if (has_callback_) {
+            nb::gil_scoped_acquire gil;
+            callback_(nb::str(line_buf_.c_str(), line_buf_.size()));
         }
-        nb::gil_scoped_acquire guard;
-        PySys_WriteStdout("%s", buffer_.c_str());
-        buffer_.clear();
+        line_buf_.clear();
     }
-
-    std::string buffer_;
-};
-
-class ScopedPythonStdoutRedirect {
 public:
-    ScopedPythonStdoutRedirect() : original_(std::cout.rdbuf(&buffer_)) {}
-
-    ~ScopedPythonStdoutRedirect() {
-        std::cout.rdbuf(original_);
-    }
-
-private:
-    PythonStdoutBuffer buffer_;
-    std::streambuf *original_;
+    CallbackStreamBuf(nb::handle cb)
+        : callback_(nb::borrow(cb)), has_callback_(!callback_.is_none()) {}
+    const std::string& get_log() const { return full_log_; }
 };
 
 struct PySolution {
     double cost;
     double time;
     std::vector<std::vector<int>> routes;
+    std::string log;
 };
-
-static PySolution convert_solution(Solution *sol) {
-    if (sol == nullptr) {
-        throw std::runtime_error("HGS-CVRP returned a null solution pointer.");
-    }
-
-    PySolution result{};
-    result.cost = sol->cost;
-    result.time = sol->time;
-    result.routes.reserve(static_cast<size_t>(sol->n_routes));
-
-    for (int i = 0; i < sol->n_routes; ++i) {
-        const SolutionRoute &route = sol->routes[i];
-        std::vector<int> path;
-        path.reserve(static_cast<size_t>(route.length));
-        for (int j = 0; j < route.length; ++j) {
-            path.push_back(route.path[j]);
-        }
-        result.routes.push_back(std::move(path));
-    }
-
-    delete_solution(sol);
-    return result;
-}
 
 static AlgorithmParameters make_ap(
     int nbGranular, int mu, int lambda_, int nbElite, int nbClose,
@@ -115,12 +76,31 @@ static AlgorithmParameters make_ap(
     return ap;
 }
 
+// Extract PySolution from a completed Genetic solver (must be called while owning the data).
+static PySolution extract_solution(Population& population, const Params& params) {
+    PySolution result{};
+    const Individual* best = population.getBestFound();
+    if (best == nullptr) {
+        throw std::runtime_error("HGS-CVRP found no feasible solution.");
+    }
+    result.cost = best->eval.penalizedCost;
+    result.time = params.elapsedSeconds();
+    for (const auto& route : best->chromR) {
+        if (!route.empty()) {
+            result.routes.push_back(route);
+        }
+    }
+    return result;
+}
+
 NB_MODULE(_core, m) {
     nb::class_<PySolution>(m, "_PySolution")
         .def_rw("cost", &PySolution::cost)
         .def_rw("time", &PySolution::time)
-        .def_rw("routes", &PySolution::routes);
+        .def_rw("routes", &PySolution::routes)
+        .def_rw("log", &PySolution::log);
 
+    // solve_cvrp: from coordinates (computes distance matrix internally)
     m.def("solve_cvrp", [](nb::ndarray<double, nb::ndim<1>, nb::c_contig> x,
                             nb::ndarray<double, nb::ndim<1>, nb::c_contig> y,
                             nb::ndarray<double, nb::ndim<1>, nb::c_contig> service,
@@ -135,37 +115,64 @@ NB_MODULE(_core, m) {
                             double penaltyDecrease, double penaltyIncrease, int seed,
                             int nbIter, int nbIterTraces, double timeLimit,
                             bool useSwapStar,
-                            bool verbose) {
+                            bool verbose,
+                            nb::handle log_callback) {
         const int n = static_cast<int>(x.shape(0));
         AlgorithmParameters ap = make_ap(nbGranular, mu, lambda_, nbElite, nbClose,
                                          nbIterPenaltyManagement, targetFeasible,
                                          penaltyDecrease, penaltyIncrease, seed, nbIter,
                                          nbIterTraces, timeLimit, useSwapStar);
 
-        hgs_set_output_stdout();
-        ScopedPythonStdoutRedirect stream;
+        // Build vectors from numpy arrays
+        std::vector<double> x_coords(x.data(), x.data() + n);
+        std::vector<double> y_coords(y.data(), y.data() + n);
+        std::vector<double> service_time(service.data(), service.data() + n);
+        std::vector<double> demands(demand.data(), demand.data() + n);
 
-        Solution *sol = ::solve_cvrp(
-            n,
-            const_cast<double *>(x.data()),
-            const_cast<double *>(y.data()),
-            const_cast<double *>(service.data()),
-            const_cast<double *>(demand.data()),
-            vehicleCapacity,
-            durationLimit,
-            isRoundingInteger,
-            isDurationConstraint,
-            max_nbVeh,
-            &ap,
-            verbose
-        );
+        // Compute distance matrix from coordinates
+        std::vector<std::vector<double>> dist_mtx(n, std::vector<double>(n, 0.0));
+        for (int i = 0; i < n; i++) {
+            for (int j = i + 1; j < n; j++) {
+                double dx = x_coords[i] - x_coords[j];
+                double dy = y_coords[i] - y_coords[j];
+                double dist = std::sqrt(dx * dx + dy * dy);
+                if (isRoundingInteger) dist = std::round(dist);
+                dist_mtx[i][j] = dist;
+                dist_mtx[j][i] = dist;
+            }
+        }
 
-        return convert_solution(sol);
-    });
+        CallbackStreamBuf buf(log_callback);
+        std::ostream log_stream(&buf);
 
+        PySolution result;
+        {
+            nb::gil_scoped_release release;
+            Params params(x_coords, y_coords, dist_mtx, service_time, demands,
+                          vehicleCapacity, durationLimit, max_nbVeh,
+                          isDurationConstraint, verbose, ap, log_stream);
+            Genetic solver(params);
+            solver.run();
+            result = extract_solution(solver.population, params);
+        }
+        result.log = buf.get_log();
+        return result;
+    },
+    nb::arg("x"), nb::arg("y"), nb::arg("service"), nb::arg("demand"),
+    nb::arg("vehicleCapacity"), nb::arg("durationLimit"),
+    nb::arg("isRoundingInteger"), nb::arg("isDurationConstraint"),
+    nb::arg("max_nbVeh"),
+    nb::arg("nbGranular"), nb::arg("mu"), nb::arg("lambda_"), nb::arg("nbElite"), nb::arg("nbClose"),
+    nb::arg("nbIterPenaltyManagement"), nb::arg("targetFeasible"),
+    nb::arg("penaltyDecrease"), nb::arg("penaltyIncrease"), nb::arg("seed"),
+    nb::arg("nbIter"), nb::arg("nbIterTraces"), nb::arg("timeLimit"),
+    nb::arg("useSwapStar"),
+    nb::arg("verbose"), nb::arg("log_callback").none() = nb::none());
+
+    // solve_cvrp_dist_mtx: with pre-computed distance matrix
     m.def("solve_cvrp_dist_mtx", [](nb::ndarray<double, nb::ndim<1>, nb::c_contig> x,
                                      nb::ndarray<double, nb::ndim<1>, nb::c_contig> y,
-                                     nb::ndarray<double, nb::ndim<2>, nb::c_contig> dist_mtx,
+                                     nb::ndarray<double, nb::ndim<2>, nb::c_contig> dist_mtx_arr,
                                      nb::ndarray<double, nb::ndim<1>, nb::c_contig> service,
                                      nb::ndarray<double, nb::ndim<1>, nb::c_contig> demand,
                                      double vehicleCapacity,
@@ -177,31 +184,54 @@ NB_MODULE(_core, m) {
                                      double penaltyDecrease, double penaltyIncrease, int seed,
                                      int nbIter, int nbIterTraces, double timeLimit,
                                      bool useSwapStar,
-                                     bool verbose) {
+                                     bool verbose,
+                                     nb::handle log_callback) {
         const int n = static_cast<int>(x.shape(0));
         AlgorithmParameters ap = make_ap(nbGranular, mu, lambda_, nbElite, nbClose,
                                          nbIterPenaltyManagement, targetFeasible,
                                          penaltyDecrease, penaltyIncrease, seed, nbIter,
                                          nbIterTraces, timeLimit, useSwapStar);
 
-        hgs_set_output_stdout();
-        ScopedPythonStdoutRedirect stream;
+        // Build vectors from numpy arrays
+        std::vector<double> x_coords(x.data(), x.data() + n);
+        std::vector<double> y_coords(y.data(), y.data() + n);
+        std::vector<double> service_time(service.data(), service.data() + n);
+        std::vector<double> demands(demand.data(), demand.data() + n);
 
-        Solution *sol = ::solve_cvrp_dist_mtx(
-            n,
-            const_cast<double *>(x.data()),
-            const_cast<double *>(y.data()),
-            const_cast<double *>(dist_mtx.data()),
-            const_cast<double *>(service.data()),
-            const_cast<double *>(demand.data()),
-            vehicleCapacity,
-            durationLimit,
-            isDurationConstraint,
-            max_nbVeh,
-            &ap,
-            verbose
-        );
+        // Convert 2D distance matrix from row-major numpy array
+        const double* dm = dist_mtx_arr.data();
+        std::vector<std::vector<double>> dist_mtx(n, std::vector<double>(n));
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                dist_mtx[i][j] = dm[i * n + j];
+            }
+        }
 
-        return convert_solution(sol);
-    });
+        CallbackStreamBuf buf(log_callback);
+        std::ostream log_stream(&buf);
+
+        PySolution result;
+        {
+            nb::gil_scoped_release release;
+            Params params(x_coords, y_coords, dist_mtx, service_time, demands,
+                          vehicleCapacity, durationLimit, max_nbVeh,
+                          isDurationConstraint, verbose, ap, log_stream);
+            Genetic solver(params);
+            solver.run();
+            result = extract_solution(solver.population, params);
+        }
+        result.log = buf.get_log();
+        return result;
+    },
+    nb::arg("x"), nb::arg("y"), nb::arg("dist_mtx_arr"),
+    nb::arg("service"), nb::arg("demand"),
+    nb::arg("vehicleCapacity"), nb::arg("durationLimit"),
+    nb::arg("isDurationConstraint"),
+    nb::arg("max_nbVeh"),
+    nb::arg("nbGranular"), nb::arg("mu"), nb::arg("lambda_"), nb::arg("nbElite"), nb::arg("nbClose"),
+    nb::arg("nbIterPenaltyManagement"), nb::arg("targetFeasible"),
+    nb::arg("penaltyDecrease"), nb::arg("penaltyIncrease"), nb::arg("seed"),
+    nb::arg("nbIter"), nb::arg("nbIterTraces"), nb::arg("timeLimit"),
+    nb::arg("useSwapStar"),
+    nb::arg("verbose"), nb::arg("log_callback").none() = nb::none());
 }

@@ -19,7 +19,7 @@ include(FetchContent)
 FetchContent_Declare(
   hgscvrp
   GIT_REPOSITORY https://github.com/mdealencar/HGS-CVRP.git
-  GIT_TAG codex/redirect-stdout-output-in-library
+  GIT_TAG 82522ef5c9e7c588b22bdbc100fc8df516da5010
 )
 FetchContent_MakeAvailable(hgscvrp)
 
