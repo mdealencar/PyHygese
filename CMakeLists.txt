@@ -6,12 +6,6 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-if(WIN32)
-    # MSBUILD toolchain names the shared library as hgscvrp.dll
-    # this forces it to use libhgscvrp.dll
-    set(CMAKE_SHARED_LIBRARY_PREFIX_CXX "lib")
-endif()
-
 project(
     ${SKBUILD_PROJECT_NAME}
     VERSION ${SKBUILD_PROJECT_VERSION}
@@ -19,18 +13,26 @@ project(
 )
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(FetchContent)
 FetchContent_Declare(
   hgscvrp
-  GIT_REPOSITORY https://github.com/vidalt/HGS-CVRP.git
-  GIT_TAG 1a927955cd2861a29d978f0d359d6e647db9319c
+  GIT_REPOSITORY https://github.com/mdealencar/HGS-CVRP.git
+  GIT_TAG 0b4482169f2695b0d153c1da5b4342ef2d79b76e
 )
 FetchContent_MakeAvailable(hgscvrp)
 
-# runtime library
-if(CMAKE_HOST_WIN32)
-  install(TARGETS lib RUNTIME DESTINATION hybgensea)
-else()
-  install(TARGETS lib LIBRARY DESTINATION hybgensea)
-endif()
+find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
+execute_process(
+  COMMAND "${Python_EXECUTABLE}" -m nanobind --cmake_dir
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  OUTPUT_VARIABLE nanobind_ROOT
+)
+find_package(nanobind CONFIG REQUIRED)
+
+nanobind_add_module(_core hybgensea/_core.cpp)
+target_include_directories(_core PRIVATE ${hgscvrp_SOURCE_DIR}/Program)
+target_link_libraries(_core PRIVATE objlib)
+
+install(TARGETS _core LIBRARY DESTINATION hybgensea)

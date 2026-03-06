@@ -1,6 +1,6 @@
 [project]
 name = "hybgensea"
-version = "0.0.1"
+version = "0.1.0"
 authors = [{name = "Changhyun Kwon"}]
 description = "Wrapper for the Hybrid Genetic Search algorithm for Capacitated Vehicle Routing Problems (HGS-CVRP)"
 readme = {file = "README.md", content-type = "text/markdown"}
@@ -9,7 +9,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 
 [build-system]
-requires = ["scikit-build-core"]
+requires = ["scikit-build-core", "nanobind"]
 build-backend = "scikit_build_core.build"
 
 [tool.scikit-build]
