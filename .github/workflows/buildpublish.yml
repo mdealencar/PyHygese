@@ -40,8 +40,7 @@ jobs:
             manylinux_x86_64_image: manylinux_2_34
           # Windows & macOS builds
           - os: windows-latest
-          - os: macos-13   # Intel
-          - os: macos-14   # Apple Silicon
+          - os: macos-15   # Apple Silicon
     steps:
       - uses: actions/checkout@v5
         with:
