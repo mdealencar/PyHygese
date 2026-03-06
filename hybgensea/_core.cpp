@@ -100,6 +100,26 @@ NB_MODULE(_core, m) {
         .def_rw("routes", &PySolution::routes)
         .def_rw("log", &PySolution::log);
 
+    m.def("default_algorithm_parameters", []() {
+        AlgorithmParameters ap = default_algorithm_parameters();
+        nb::dict d;
+        d["nbGranular"] = ap.nbGranular;
+        d["mu"] = ap.mu;
+        d["lambda_"] = ap.lambda;
+        d["nbElite"] = ap.nbElite;
+        d["nbClose"] = ap.nbClose;
+        d["nbIterPenaltyManagement"] = ap.nbIterPenaltyManagement;
+        d["targetFeasible"] = ap.targetFeasible;
+        d["penaltyDecrease"] = ap.penaltyDecrease;
+        d["penaltyIncrease"] = ap.penaltyIncrease;
+        d["seed"] = ap.seed;
+        d["nbIter"] = ap.nbIter;
+        d["nbIterTraces"] = ap.nbIterTraces;
+        d["timeLimit"] = ap.timeLimit;
+        d["useSwapStar"] = (bool)ap.useSwapStar;
+        return d;
+    });
+
     // solve_cvrp: from coordinates (computes distance matrix internally)
     m.def("solve_cvrp", [](nb::ndarray<double, nb::ndim<1>, nb::c_contig> x,
                             nb::ndarray<double, nb::ndim<1>, nb::c_contig> y,
@@ -123,22 +143,18 @@ NB_MODULE(_core, m) {
                                          penaltyDecrease, penaltyIncrease, seed, nbIter,
                                          nbIterTraces, timeLimit, useSwapStar);
 
-        // Build vectors from numpy arrays
-        std::vector<double> x_coords(x.data(), x.data() + n);
-        std::vector<double> y_coords(y.data(), y.data() + n);
-        std::vector<double> service_time(service.data(), service.data() + n);
-        std::vector<double> demands(demand.data(), demand.data() + n);
-
-        // Compute distance matrix from coordinates
-        std::vector<std::vector<double>> dist_mtx(n, std::vector<double>(n, 0.0));
+        // Compute flat distance matrix from coordinates
+        std::vector<double> dist_mtx(n * n, 0.0);
+        const double* xp = x.data();
+        const double* yp = y.data();
         for (int i = 0; i < n; i++) {
             for (int j = i + 1; j < n; j++) {
-                double dx = x_coords[i] - x_coords[j];
-                double dy = y_coords[i] - y_coords[j];
+                double dx = xp[i] - xp[j];
+                double dy = yp[i] - yp[j];
                 double dist = std::sqrt(dx * dx + dy * dy);
                 if (isRoundingInteger) dist = std::round(dist);
-                dist_mtx[i][j] = dist;
-                dist_mtx[j][i] = dist;
+                dist_mtx[i * n + j] = dist;
+                dist_mtx[j * n + i] = dist;
             }
         }
 
@@ -148,7 +164,7 @@ NB_MODULE(_core, m) {
         PySolution result;
         {
             nb::gil_scoped_release release;
-            Params params(x_coords, y_coords, dist_mtx, service_time, demands,
+            Params params(xp, yp, dist_mtx.data(), service.data(), demand.data(), n,
                           vehicleCapacity, durationLimit, max_nbVeh,
                           isDurationConstraint, verbose, ap, log_stream);
             Genetic solver(params);
@@ -169,7 +185,7 @@ NB_MODULE(_core, m) {
     nb::arg("useSwapStar"),
     nb::arg("verbose"), nb::arg("log_callback").none() = nb::none());
 
-    // solve_cvrp_dist_mtx: with pre-computed distance matrix
+    // solve_cvrp_dist_mtx: with pre-computed distance matrix (zero-copy from numpy)
     m.def("solve_cvrp_dist_mtx", [](nb::ndarray<double, nb::ndim<1>, nb::c_contig> x,
                                      nb::ndarray<double, nb::ndim<1>, nb::c_contig> y,
                                      nb::ndarray<double, nb::ndim<2>, nb::c_contig> dist_mtx_arr,
@@ -192,28 +208,16 @@ NB_MODULE(_core, m) {
                                          penaltyDecrease, penaltyIncrease, seed, nbIter,
                                          nbIterTraces, timeLimit, useSwapStar);
 
-        // Build vectors from numpy arrays
-        std::vector<double> x_coords(x.data(), x.data() + n);
-        std::vector<double> y_coords(y.data(), y.data() + n);
-        std::vector<double> service_time(service.data(), service.data() + n);
-        std::vector<double> demands(demand.data(), demand.data() + n);
-
-        // Convert 2D distance matrix from row-major numpy array
-        const double* dm = dist_mtx_arr.data();
-        std::vector<std::vector<double>> dist_mtx(n, std::vector<double>(n));
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
-                dist_mtx[i][j] = dm[i * n + j];
-            }
-        }
-
         CallbackStreamBuf buf(log_callback);
         std::ostream log_stream(&buf);
+
+        // Pass numpy distance matrix pointer directly to Params — zero copy
+        const double* dm = dist_mtx_arr.data();
 
         PySolution result;
         {
             nb::gil_scoped_release release;
-            Params params(x_coords, y_coords, dist_mtx, service_time, demands,
+            Params params(x.data(), y.data(), dm, service.data(), demand.data(), n,
                           vehicleCapacity, durationLimit, max_nbVeh,
                           isDurationConstraint, verbose, ap, log_stream);
             Genetic solver(params);

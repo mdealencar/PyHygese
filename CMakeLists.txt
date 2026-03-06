@@ -19,7 +19,7 @@ include(FetchContent)
 FetchContent_Declare(
   hgscvrp
   GIT_REPOSITORY https://github.com/mdealencar/HGS-CVRP.git
-  GIT_TAG 82522ef5c9e7c588b22bdbc100fc8df516da5010
+  GIT_TAG 0b4482169f2695b0d153c1da5b4342ef2d79b76e
 )
 FetchContent_MakeAvailable(hgscvrp)
 

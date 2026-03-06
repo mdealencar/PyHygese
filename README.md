@@ -1,7 +1,12 @@
+Fork of [PyHygese](https://github.com/chkwon/PyHygese) by [Changhyun Kwon](https://github.com/chkwon).
+
+## Motivation for the fork
+
+The PyHygese maintainer was not interested in creating binary wheels for publishing in PyPI. This fork enabled that and the creation of a conda-forge package.
+
+Later, the entire codebase was rewritten migrating from a ctypes-based binding (PyHygese) to a nanobind-based one (HybGenSea 0.1.0+). The upstream library repository, [Thibaut Vidal's HGS-CVRP](https://github.com/vidalt/HGS-CVRP), was changed to [my HGS-CVRP fork](https://github.com/mdealencar/HGS-CVRP) to enable further improvements in the Python functionality. The algorithm is still the same and so are the default parameters, which means the two repositories should produce the same solutions.
+
 ## HybGenSea: Hybrid Genetic Search
-
-This is a rebranded fork of [PyHygese](https://github.com/chkwon/PyHygese) by [Changhyun Kwon](https://github.com/chkwon).
-
 
 **A solver for the Capacitated Vehicle Routing Problem (CVRP)**
 
@@ -157,8 +162,4 @@ class AlgorithmParameters:
     timeLimit: float = 0.0
     useSwapStar: bool = True
 ```
-
-## Others
-
-A Julia wrapper is available: [Hygese.jl](https://github.com/chkwon/Hygese.jl)
 
