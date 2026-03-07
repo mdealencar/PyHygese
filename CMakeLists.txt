@@ -28,7 +28,12 @@ execute_process(
   COMMAND "${Python_EXECUTABLE}" -m nanobind --cmake_dir
   OUTPUT_STRIP_TRAILING_WHITESPACE
   OUTPUT_VARIABLE nanobind_ROOT
+  ERROR_QUIET
+  RESULT_VARIABLE nanobind_exit_code
 )
+if(NOT nanobind_exit_code EQUAL 0)
+  unset(nanobind_ROOT)
+endif()
 find_package(nanobind CONFIG REQUIRED)
 
 nanobind_add_module(_core hybgensea/_core.cpp)
